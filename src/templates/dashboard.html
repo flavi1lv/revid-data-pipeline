@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REVID - Dashboard MLOps</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="dashboard">
+    <div class="panel">
+        <h2>🏭 Ajouter à l'usine <span id="genBadge" class="status-badge status-idle">EN ATTENTE</span></h2>
+        <p style="color: var(--text-muted); margin-top:0;">Scraper, nettoyer et générer les spectrogrammes.</p>
+
+        <label>Modèle de véhicule</label>
+        <input type="text" id="vehicleInput" placeholder="Ex : Nissan GTR..." autocomplete="off">
+
+        <label>Durée audio cible (minutes)</label>
+        <input type="number" id="targetMinutes" value="120" min="1" max="300">
+
+        <button id="startButton" onclick="startPipeline()">Lancer la production</button>
+
+        <div id="logTerminal">En attente d'une tâche...\n</div>
+    </div>
+
+    <div class="panel">
+        <h2>🗂️ Dataset Actuel</h2>
+        <input type="text" id="searchInput" class="search-bar" placeholder="Rechercher un modèle..." onkeyup="handleSearch()" autocomplete="off">
+        <div style="height: 25px; width: 100%;"></div>
+        <div id="datasetList" style="flex-grow:1;">Chargement...</div>
+        <div class="pagination" id="paginationControls" style="display:none;">
+            <button id="btnPrev" onclick="changePage(-1)">Précédent</button>
+            <span id="pageInfo" style="font-size:.9em; color: var(--text-muted);">Page 1/1</span>
+            <button id="btnNext" onclick="changePage(1)">Suivant</button>
+        </div>
+        <div id="globalStats" class="stats-footer"></div>
+    </div>
+
+    <div class="panel full-width" style="text-align:center;">
+        <h2>🧠 Entraînement de l'IA <span id="trainBadge" class="status-badge status-idle">EN ATTENTE</span></h2>
+        <p style="color: var(--text-muted); margin-bottom:20px;">Compile le dataset pour créer le modèle de reconnaissance (EfficientNetB0).</p>
+        <button id="trainButton" onclick="startTraining()" style="max-width:300px; margin:0 auto;">Lancer l'entraînement</button>
+        <div id="trainStatus" style="margin-top:12px; color: var(--text-muted); font-size:14px;"></div>
+    </div>
+
+    <div class="panel full-width" style="text-align:center;">
+        <h2>🔮 Tester l'IA <span id="iaBadge" class="status-badge status-done">PRÊTE</span></h2>
+        <p style="color: var(--text-muted); margin-bottom:20px;">Soumettez un fichier audio ou enregistrez le moteur en direct via votre micro.</p>
+        
+        <div class="button-group">
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--border); padding: 15px; border-radius: 8px;">
+                <label style="margin-top: 0;">📁 Charger un fichier</label>
+                <input type="file" id="testAudio" accept="audio/*" style="font-size: 14px; background: transparent; border: none; padding: 0;">
+                <button onclick="testIAWithFile()" style="margin-top: 15px; padding: 10px 20px; font-size: 14px;">Analyser le fichier</button>
+            </div>
+
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--border); padding: 15px; border-radius: 8px;">
+                <label style="margin-top: 0;">🎙️ Enregistrement Micro</label>
+                <button id="micButton" onclick="toggleMicRecording()" class="btn-warn" style="padding: 12px 20px; font-size: 14px; width: 100%;">🔴 Enregistrer le micro (max 10s)</button>
+            </div>
+        </div>
+        
+        <div id="iaResult" style="margin-top: 25px; font-size: 20px; font-weight: bold; text-align: center; padding: 15px; border-radius: 8px; background: #2d2d2d; display: none; max-width: 500px; margin-left: auto; margin-right: auto;"></div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
