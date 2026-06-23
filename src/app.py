@@ -196,14 +196,17 @@ def train_api():
         if pipeline_status["running"]:
             return jsonify({"status": "error", "message": "Un pipeline tourne déjà."}), 409
 
+    data = request.json or {}
+    epochs_p1 = int(data.get("epochs_p1", 15))
+    epochs_p2 = int(data.get("epochs_p2", 10))
+
     def run_train_async():
         with status_lock:
             pipeline_status.update({"running": True, "type": "train", "result": None})
         log_buffer.clear()
 
         try:
-            # Raccordement SSE parfait de l'entraînement grâce au callback injecté
-            run_training(log_fn=stream_log)
+            run_training(log_fn=stream_log, epochs_p1=epochs_p1, epochs_p2=epochs_p2)
             with status_lock:
                 pipeline_status["result"] = "success"
                 pipeline_status["message"] = "Modèle entraîné avec succès."

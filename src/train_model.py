@@ -12,12 +12,10 @@ MODEL_DIR   = os.path.join(BASE_DIR, "../models")
 # ─── HYPERPARAMÈTRES ──────────────────────────────────────────────────────────
 IMG_SIZE         = (224, 224)
 BATCH_SIZE       = 64   # Boost de RAM (nb de spectrogrammes traités en parallèle)
-EPOCHS_PHASE1    = 15   # Backbone gelé — on entraîne seulement la tête
-EPOCHS_PHASE2    = 10   # Fine-tuning — on dégèle les 30 dernières couches
 VALIDATION_SPLIT = 0.20
 SEED             = 123
 
-def run_training(log_fn=print):
+def run_training(log_fn=print, epochs_p1=15, epochs_p2=10):
     log_fn("\n==================================================")
     log_fn("🧠 DÉMARRAGE DE L'ENTRAÎNEMENT (EfficientNetB0)")
     log_fn("==================================================\n")
@@ -71,7 +69,7 @@ def run_training(log_fn=print):
     )
     val_dataset = val_dataset.cache().prefetch(AUTOTUNE)
 
-# 4. Construction ou Chargement du modèle (Logique Anti-Crash 2.0)
+    # 4. Construction ou Chargement du modèle (Logique Anti-Crash 2.0)
     checkpoint_p1 = os.path.join(MODEL_DIR, "best_model_phase1.keras")
     checkpoint_p2 = os.path.join(MODEL_DIR, "best_model_phase2.keras")
     
@@ -127,7 +125,7 @@ def run_training(log_fn=print):
 
     # ─── PHASE 1 : Tête seule ─────────────────────────────────────────────────
     if not skip_phase1:
-        log_fn(f"\n📌 PHASE 1 — Entraînement de la tête ({EPOCHS_PHASE1} epochs max)")
+        log_fn(f"\n📌 PHASE 1 — Entraînement de la tête ({epochs_p1} epochs max)")
         log_fn("   Backbone : gelé  |  LR : 1e-3")
 
         model.compile(
@@ -140,38 +138,18 @@ def run_training(log_fn=print):
         history1 = model.fit(
             train_dataset,
             validation_data = val_dataset,
-            epochs          = EPOCHS_PHASE1,
+            epochs          = epochs_p1,
             callbacks       = callbacks_p1,
         )
+        
+        # On gère le cas où l'EarlyStopping a tout coupé avant la fin
         best_p1 = max(history1.history.get("val_accuracy", [0]))
         log_fn(f"\n   ✅ Phase 1 — meilleure val_accuracy : {best_p1:.4f} ({best_p1*100:.1f}%)")
     else:
         log_fn("\n⏩ PHASE 1 IGNORÉE — (Déjà complétée, poids chargés en mémoire)")
 
-    # ─── PHASE 1 : Tête seule ─────────────────────────────────────────────────
-    log_fn(f"\n📌 PHASE 1 — Entraînement de la tête ({EPOCHS_PHASE1} epochs max)")
-    log_fn("   Backbone : gelé  |  LR : 1e-3")
-
-    model.compile(
-        optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3),
-        loss      = "sparse_categorical_crossentropy",
-        metrics   = ["accuracy"],
-    )
-
-    callbacks_p1 = _get_callbacks(MODEL_DIR, phase=1)
-    history1 = model.fit(
-        train_dataset,
-        validation_data = val_dataset,
-        epochs          = EPOCHS_PHASE1,
-        callbacks       = callbacks_p1,
-    )
-    
-    # On gère le cas où l'EarlyStopping a tout coupé avant la fin
-    best_p1 = max(history1.history.get("val_accuracy", [0]))
-    log_fn(f"\n   ✅ Phase 1 — meilleure val_accuracy : {best_p1:.4f} ({best_p1*100:.1f}%)")
-
     # ─── PHASE 2 : Fine-tuning ────────────────────────────────────────────────
-    log_fn(f"\n🔓 PHASE 2 — Fine-tuning ({EPOCHS_PHASE2} epochs max)")
+    log_fn(f"\n🔓 PHASE 2 — Fine-tuning ({epochs_p2} epochs max)")
     log_fn("   Backbone : 30 dernières couches dégelées  |  LR : 1e-5")
 
     # Récupération du backbone (indispensable si on a chargé une sauvegarde)
@@ -191,7 +169,7 @@ def run_training(log_fn=print):
     history2 = model.fit(
         train_dataset,
         validation_data = val_dataset,
-        epochs          = EPOCHS_PHASE2,
+        epochs          = epochs_p2,
         callbacks       = callbacks_p2,
     )
     

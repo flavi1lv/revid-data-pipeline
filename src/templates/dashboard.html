@@ -80,6 +80,18 @@
     <div class="panel full-width" style="text-align:center;">
         <h2>🧠 Entraînement de l'IA <span id="trainBadge" class="status-badge status-idle">EN ATTENTE</span></h2>
         <p style="color: var(--text-muted); margin-bottom:20px;">Compile le dataset pour créer le modèle de reconnaissance (EfficientNetB0).</p>
+        
+        <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 20px; text-align: left; max-width: 400px; margin-left: auto; margin-right: auto;">
+            <div style="flex: 1;">
+                <label>Epochs Phase 1 (Gelé)</label>
+                <input type="number" id="epochsP1" value="15" min="1" max="100">
+            </div>
+            <div style="flex: 1;">
+                <label>Epochs Phase 2 (Fine-tuning)</label>
+                <input type="number" id="epochsP2" value="10" min="0" max="100">
+            </div>
+        </div>
+
         <button id="trainButton" onclick="startTraining()" style="max-width:300px; margin:0 auto;">Lancer l'entraînement</button>
         <div id="trainStatus" style="margin-top:12px; color: var(--text-muted); font-size:14px;"></div>
     </div>
@@ -269,6 +281,9 @@
         if (currentDataset.length < 2)
             return alert("Il faut au moins 2 véhicules pour entraîner !");
 
+        const epochs1 = parseInt(document.getElementById('epochsP1').value) || 15;
+        const epochs2 = parseInt(document.getElementById('epochsP2').value) || 10;
+
         document.getElementById('logTerminal').innerHTML = '';
         document.getElementById('trainButton').disabled = true;
         setBadge('trainBadge', 'running', 'EN COURS');
@@ -276,7 +291,11 @@
 
         startLogStream();
 
-        const r = await fetch('/api/train', { method: 'POST' });
+        const r = await fetch('/api/train', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ epochs_p1: epochs1, epochs_p2: epochs2 })
+        });
         const data = await r.json();
 
         if (data.status === 'success') {
