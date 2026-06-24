@@ -100,6 +100,16 @@
             </div>
         </div>
 
+        <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 20px; text-align: left; max-width: 600px; margin-left: auto; margin-right: auto;">
+            </div>
+
+        <div style="margin-bottom: 20px;">
+            <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: var(--warn); font-size: 14px;">
+                <input type="checkbox" id="forceTrain" style="width: 18px; height: 18px; margin: 0; cursor: pointer;">
+                <span>⚠️ Forcer l'entraînement depuis zéro (ajout nouveaux models)</span>
+            </label>
+        </div>
+
         <button id="trainButton" onclick="startTraining()" style="max-width:300px; margin:0 auto;">Lancer l'entraînement</button>
         <div id="trainStatus" style="margin-top:12px; color: var(--text-muted); font-size:14px;"></div>
     </div>
@@ -326,6 +336,7 @@
         const epochs_p1  = parseInt(document.getElementById('epochsP1').value)  || 15;
         const epochs_p2  = parseInt(document.getElementById('epochsP2').value)  || 10;
         const batch_size = parseInt(document.getElementById('batchSize').value) || 64;
+        const force_train = document.getElementById('forceTrain').checked;
 
         document.getElementById('logTerminal').innerHTML = '';
         document.getElementById('trainButton').disabled  = true;
@@ -337,7 +348,7 @@
             const r = await fetch('/api/train', {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ epochs_p1, epochs_p2, batch_size })
+                body:    JSON.stringify({ epochs_p1, epochs_p2, batch_size, force_train })
             });
             const data = await r.json();
 
