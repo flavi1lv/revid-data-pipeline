@@ -13,7 +13,7 @@ def scrape_youtube_urls(vehicule_name, target_minutes, log_fn=print):
     c    = conn.cursor()
 
     c.execute("SELECT SUM(duration) FROM videos WHERE vehicule = ?", (vehicule_name,))
-    total_seconds_cumules = c.fetchone()[0] or 0
+    total_seconds_cumules = int(c.fetchone()[0] or 0)
 
     if total_seconds_cumules >= target_seconds:
         log_fn(f"✅ Quota de {target_minutes} min déjà atteint en base de données.")
@@ -35,7 +35,7 @@ def scrape_youtube_urls(vehicule_name, target_minutes, log_fn=print):
             for entry in info['entries']:
                 url         = entry.get('url')
                 title       = entry.get('title')
-                duration    = entry.get('duration') or 0
+                duration    = int(entry.get('duration')) or 0
                 description = entry.get('description') or ""
 
                 if not url or duration < DUREE_MIN_SECONDES or duration > DUREE_MAX_SECONDES:
