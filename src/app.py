@@ -180,6 +180,7 @@ def train_api():
     epochs_p1  = int(data.get("epochs_p1",  15))
     epochs_p2  = int(data.get("epochs_p2",  10))
     batch_size = int(data.get("batch_size", 64))
+    force_train = bool(data.get("force_train", False))
 
     def run_train_async():
         with status_lock:
@@ -187,7 +188,7 @@ def train_api():
         log_buffer.clear()
 
         try:
-            run_training(log_fn=stream_log, epochs_p1=epochs_p1, epochs_p2=epochs_p2, batch_size=batch_size)
+            run_training(log_fn=stream_log, epochs_p1=epochs_p1, epochs_p2=epochs_p2, batch_size=batch_size, force_train=force_train)
             with status_lock:
                 pipeline_status["result"]  = "success"
                 pipeline_status["message"] = "Modèle entraîné avec succès."

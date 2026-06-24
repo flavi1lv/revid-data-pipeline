@@ -17,7 +17,7 @@ VALIDATION_SPLIT = 0.20
 SEED             = 123
 
 
-def run_training(log_fn=print, epochs_p1=15, epochs_p2=10, batch_size=64):
+def run_training(log_fn=print, epochs_p1=15, epochs_p2=10, batch_size=64, force_train=False):
     t_global_start = time.time()
     _log_section(log_fn, "INITIALISATION")
     _setup_gpu(log_fn, batch_size)
@@ -97,6 +97,23 @@ def run_training(log_fn=print, epochs_p1=15, epochs_p2=10, batch_size=64):
     checkpoint_p1      = os.path.join(MODEL_DIR, "best_model_phase1.keras")
     checkpoint_p2      = os.path.join(MODEL_DIR, "best_model_phase2.keras")
     training_done_flag = os.path.join(MODEL_DIR, "training_complete.json")
+
+    if force_train:
+        log_fn("⚠️ FORÇAGE ACTIVÉ : Suppression des anciennes sauvegardes...")
+        fichiers_a_supprimer = [training_done_flag, checkpoint_p1, checkpoint_p2]
+        for f in fichiers_a_supprimer:
+            if os.path.exists(f):
+                os.remove(f)
+                log_fn(f"   🗑️ Supprimé : {os.path.basename(f)}")
+
+    skip_phase1     = False
+    best_p1         = 0.0
+    best_p1_display = "0.0%"
+
+    if os.path.exists(training_done_flag):
+        log_fn("🏁 Entraînement déjà complet (training_complete.json trouvé).")
+        log_fn("   Cochez 'Forcer l'entraînement' sur le Dashboard pour relancer depuis zéro (pour ajouter des models par ex).")
+        return True
 
     skip_phase1     = False
     best_p1         = 0.0
