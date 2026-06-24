@@ -49,6 +49,8 @@
 </head>
 <body>
 <div class="dashboard">
+
+    <!-- ── PANEL 1 : GÉNÉRATION ── -->
     <div class="panel">
         <h2>🏭 Ajouter à l'usine <span id="genBadge" class="status-badge status-idle">EN ATTENTE</span></h2>
         <p style="color: var(--text-muted); margin-top:0;">Scraper, nettoyer et générer les spectrogrammes.</p>
@@ -64,6 +66,7 @@
         <div id="logTerminal">En attente d'une tâche...\n</div>
     </div>
 
+    <!-- ── PANEL 2 : DATASET ── -->
     <div class="panel">
         <h2>🗂️ Dataset Actuel</h2>
         <input type="text" id="searchInput" class="search-bar" placeholder="Rechercher un modèle..." onkeyup="handleSearch()" autocomplete="off">
@@ -77,11 +80,12 @@
         <div id="globalStats" class="stats-footer"></div>
     </div>
 
+    <!-- ── PANEL 3 : ENTRAÎNEMENT ── -->
     <div class="panel full-width" style="text-align:center;">
         <h2>🧠 Entraînement de l'IA <span id="trainBadge" class="status-badge status-idle">EN ATTENTE</span></h2>
         <p style="color: var(--text-muted); margin-bottom:20px;">Compile le dataset pour créer le modèle de reconnaissance (EfficientNetB0).</p>
-        
-        <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 20px; text-align: left; max-width: 400px; margin-left: auto; margin-right: auto;">
+
+        <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 20px; text-align: left; max-width: 600px; margin-left: auto; margin-right: auto;">
             <div style="flex: 1;">
                 <label>Epochs Phase 1 (Gelé)</label>
                 <input type="number" id="epochsP1" value="15" min="1" max="100">
@@ -90,16 +94,21 @@
                 <label>Epochs Phase 2 (Fine-tuning)</label>
                 <input type="number" id="epochsP2" value="10" min="0" max="100">
             </div>
+            <div style="flex: 1;">
+                <label>Batch Size</label>
+                <input type="number" id="batchSize" value="64" min="8" max="256" step="8">
+            </div>
         </div>
 
         <button id="trainButton" onclick="startTraining()" style="max-width:300px; margin:0 auto;">Lancer l'entraînement</button>
         <div id="trainStatus" style="margin-top:12px; color: var(--text-muted); font-size:14px;"></div>
     </div>
 
+    <!-- ── PANEL 4 : TEST IA ── -->
     <div class="panel full-width" style="text-align:center;">
         <h2>🔮 Tester l'IA <span id="iaBadge" class="status-badge status-done">PRÊTE</span></h2>
         <p style="color: var(--text-muted); margin-bottom:20px;">Soumettez un fichier audio ou enregistrez le moteur en direct via votre micro.</p>
-        
+
         <div class="button-group">
             <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--border); padding: 15px; border-radius: 8px;">
                 <label style="margin-top: 0;">📁 Charger un fichier</label>
@@ -112,40 +121,47 @@
                 <button id="micButton" onclick="toggleMicRecording()" class="btn-warn" style="padding: 12px 20px; font-size: 14px; width: 100%;">🔴 Enregistrer le micro (max 10s)</button>
             </div>
         </div>
-        
+
         <div id="iaResult" style="margin-top: 25px; font-size: 20px; font-weight: bold; text-align: center; padding: 15px; border-radius: 8px; background: #2d2d2d; display: none; max-width: 500px; margin-left: auto; margin-right: auto;"></div>
     </div>
+
 </div>
 
 <script>
-    let currentDataset = [];
+    let currentDataset  = [];
     let filteredDataset = [];
-    let currentPage = 1;
+    let currentPage     = 1;
     const ITEMS_PER_PAGE = 5;
     let logSource = null;
 
     // Variables pour l'enregistrement micro
     let mediaRecorder = null;
-    let audioChunks = [];
-    let isRecording = false;
-    let micTimeout = null;
+    let audioChunks   = [];
+    let isRecording   = false;
+    let micTimeout    = null;
+
+    // ── LOGS SSE ──
 
     function startLogStream() {
         if (logSource) logSource.close();
         logSource = new EventSource('/api/logs');
         logSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            if (data.log) appendLog(data.log);
+            if (data.log)  appendLog(data.log);
             if (data.done) { logSource.close(); logSource = null; }
+        };
+        logSource.onerror = () => {
+            // Connexion SSE coupée (fin de tâche ou perte réseau) — on ferme proprement
+            if (logSource) { logSource.close(); logSource = null; }
         };
     }
 
     function appendLog(text) {
         const terminal = document.getElementById('logTerminal');
         const div = document.createElement('div');
-        if (text.includes('✅') || text.includes('🎉') || text.includes('✨') || text.includes('🏆')) div.className = 'log-success';
-        else if (text.includes('❌') || text.includes('Erreur')) div.className = 'log-error';
-        else if (text.includes('⚠️') || text.includes('⏳') || text.includes('📌') || text.includes('🏋️‍♂️')) div.className = 'log-warn';
+        if      (text.includes('✅') || text.includes('🎉') || text.includes('✨') || text.includes('🏆')) div.className = 'log-success';
+        else if (text.includes('❌') || text.includes('Erreur'))                                            div.className = 'log-error';
+        else if (text.includes('⚠️') || text.includes('⏳') || text.includes('📌'))                       div.className = 'log-warn';
         div.textContent = text;
         terminal.appendChild(div);
         terminal.scrollTop = terminal.scrollHeight;
@@ -153,45 +169,60 @@
 
     function setBadge(id, state, label) {
         const badge = document.getElementById(id);
-        if(badge) {
-            badge.className = `status-badge status-${state}`;
+        if (badge) {
+            badge.className  = `status-badge status-${state}`;
             badge.textContent = label;
         }
     }
+
+    // ── POLLING STATUT ──
 
     function pollStatus() {
         setInterval(async () => {
             try {
                 const r = await fetch('/api/status');
                 const s = await r.json();
-                
+
                 if (s.type === 'generate') {
-                    if (s.running) setBadge('genBadge', 'running', 'EN COURS');
-                    else if (s.result === 'success') {
+                    if (s.running) {
+                        setBadge('genBadge', 'running', 'EN COURS');
+                    } else if (s.result === 'success') {
                         if (document.getElementById('genBadge').textContent !== 'TERMINÉ') {
                             setBadge('genBadge', 'done', 'TERMINÉ');
-                            loadDataset(); 
+                            loadDataset();
                         }
+                    } else if (s.result === 'error') {
+                        setBadge('genBadge', 'error', 'ERREUR');
                     }
-                    else if (s.result === 'error') setBadge('genBadge', 'error', 'ERREUR');
                 }
-                
+
                 if (s.type === 'train') {
-                    if (s.running) setBadge('trainBadge', 'running', 'EN COURS');
-                    else if (s.result === 'success') setBadge('trainBadge', 'done', 'TERMINÉ');
-                    else if (s.result === 'error') setBadge('trainBadge', 'error', 'ERREUR');
+                    if (s.running) {
+                        setBadge('trainBadge', 'running', 'EN COURS');
+                    } else if (s.result === 'success') {
+                        setBadge('trainBadge', 'done', 'TERMINÉ');
+                    } else if (s.result === 'error') {
+                        setBadge('trainBadge', 'error', 'ERREUR');
+                    }
                 }
-            } catch(e) {}
+            } catch (e) { /* silencieux — perte réseau temporaire */ }
         }, 3000);
     }
 
+    // ── DATASET ──
+
     async function loadDataset() {
-        const r = await fetch('/api/dataset');
-        currentDataset = await r.json();
-        const total = currentDataset.reduce((sum, v) => sum + v.nb_images, 0);
-        document.getElementById('globalStats').innerHTML =
-            `Total : <b>${currentDataset.length} véhicules</b> | <b>${total} images</b>`;
-        handleSearch();
+        try {
+            const r = await fetch('/api/dataset');
+            currentDataset = await r.json();
+            const total = currentDataset.reduce((sum, v) => sum + v.nb_images, 0);
+            document.getElementById('globalStats').innerHTML =
+                `Total : <b>${currentDataset.length} véhicules</b> | <b>${total} images</b>`;
+            handleSearch();
+        } catch (e) {
+            document.getElementById('datasetList').innerHTML =
+                "<p style='color: var(--text-muted); text-align:center;'>Erreur de chargement.</p>";
+        }
     }
 
     function handleSearch() {
@@ -204,7 +235,7 @@
     function changePage(delta) { currentPage += delta; renderPage(); }
 
     function renderPage() {
-        const listDiv = document.getElementById('datasetList');
+        const listDiv       = document.getElementById('datasetList');
         const paginationDiv = document.getElementById('paginationControls');
 
         if (!filteredDataset.length) {
@@ -215,7 +246,7 @@
 
         const totalPages = Math.ceil(filteredDataset.length / ITEMS_PER_PAGE);
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const items = filteredDataset.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+        const items      = filteredDataset.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
         listDiv.innerHTML = items.map(v => `
             <div class="vehicle-card">
@@ -229,13 +260,15 @@
 
         if (totalPages > 1) {
             paginationDiv.style.display = "flex";
-            document.getElementById('pageInfo').textContent = `Page ${currentPage} / ${totalPages}`;
+            document.getElementById('pageInfo').textContent  = `Page ${currentPage} / ${totalPages}`;
             document.getElementById('btnPrev').disabled = currentPage === 1;
             document.getElementById('btnNext').disabled = currentPage === totalPages;
         } else {
             paginationDiv.style.display = "none";
         }
     }
+
+    // ── PIPELINE GÉNÉRATION ──
 
     async function startPipeline() {
         const vehicle = document.getElementById('vehicleInput').value.trim();
@@ -246,134 +279,143 @@
 
         document.getElementById('logTerminal').innerHTML = '';
         appendLog(`🚀 Démarrage du pipeline pour : ${vehicle} (${minutes} min)`);
-
         document.getElementById('startButton').disabled = true;
         setBadge('genBadge', 'running', 'EN COURS');
-
         startLogStream();
 
-        const r = await fetch('/api/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ vehicle, target_minutes: minutes })
-        });
-        const data = await r.json();
-
-        if (data.status === 'error') {
-            appendLog(`❌ ${data.message}`);
+        try {
+            const r = await fetch('/api/generate', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ vehicle, target_minutes: minutes })
+            });
+            const data = await r.json();
+            if (data.status === 'error') {
+                appendLog(`❌ ${data.message}`);
+                setBadge('genBadge', 'error', 'ERREUR');
+            }
+        } catch (e) {
+            appendLog(`❌ Erreur réseau : ${e.message}`);
             setBadge('genBadge', 'error', 'ERREUR');
+        } finally {
+            document.getElementById('startButton').disabled = false;
+            document.getElementById('vehicleInput').value   = '';
         }
-        document.getElementById('startButton').disabled = false;
-        document.getElementById('vehicleInput').value = '';
     }
 
     async function deleteVehicle(folderName) {
         if (!confirm(`Supprimer définitivement ${folderName.replace(/_/g, ' ')} ?`)) return;
-        await fetch('/api/delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ folder: folderName })
-        });
+        try {
+            await fetch('/api/delete', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ folder: folderName })
+            });
+        } catch (e) {
+            alert(`Erreur lors de la suppression : ${e.message}`);
+        }
         loadDataset();
     }
+
+    // ── ENTRAÎNEMENT ──
 
     async function startTraining() {
         if (currentDataset.length < 2)
             return alert("Il faut au moins 2 véhicules pour entraîner !");
 
-        const epochs1 = parseInt(document.getElementById('epochsP1').value) || 15;
-        const epochs2 = parseInt(document.getElementById('epochsP2').value) || 10;
+        const epochs_p1  = parseInt(document.getElementById('epochsP1').value)  || 15;
+        const epochs_p2  = parseInt(document.getElementById('epochsP2').value)  || 10;
+        const batch_size = parseInt(document.getElementById('batchSize').value) || 64;
 
         document.getElementById('logTerminal').innerHTML = '';
-        document.getElementById('trainButton').disabled = true;
+        document.getElementById('trainButton').disabled  = true;
         setBadge('trainBadge', 'running', 'EN COURS');
         document.getElementById('trainStatus').textContent = "⏳ Entraînement en cours... Suivi des époques ci-dessous.";
-
         startLogStream();
 
-        const r = await fetch('/api/train', { 
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ epochs_p1: epochs1, epochs_p2: epochs2 })
-        });
-        const data = await r.json();
+        try {
+            const r = await fetch('/api/train', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ epochs_p1, epochs_p2, batch_size })
+            });
+            const data = await r.json();
 
-        if (data.status === 'success') {
-            setBadge('trainBadge', 'done', 'TERMINÉ');
-            document.getElementById('trainStatus').textContent = "✅ Modèle sauvegardé dans /models/";
-        } else {
+            if (data.status === 'success') {
+                setBadge('trainBadge', 'done', 'TERMINÉ');
+                document.getElementById('trainStatus').textContent = "✅ Modèle sauvegardé dans /models/";
+            } else {
+                setBadge('trainBadge', 'error', 'ERREUR');
+                document.getElementById('trainStatus').textContent = `❌ ${data.message}`;
+            }
+        } catch (e) {
             setBadge('trainBadge', 'error', 'ERREUR');
-            document.getElementById('trainStatus').textContent = `❌ ${data.message}`;
+            document.getElementById('trainStatus').textContent = `❌ Erreur réseau : ${e.message}`;
+        } finally {
+            document.getElementById('trainButton').disabled = false;
         }
-        document.getElementById('trainButton').disabled = false;
     }
 
-    // ── LOGIQUE COMMUNE D'ENVOI À L'IA ──
+    // ── TEST IA ──
+
     async function sendAudioToIA(audioBlob, filename) {
         const resultDiv = document.getElementById('iaResult');
         resultDiv.style.display = "block";
-        resultDiv.innerHTML = "⏳ Analyse et conversion en cours...";
+        resultDiv.innerHTML     = "⏳ Analyse et conversion en cours...";
 
         const formData = new FormData();
         formData.append("file", audioBlob, filename);
 
         try {
-            const r = await fetch('/api/predict', { method: 'POST', body: formData });
+            const r    = await fetch('/api/predict', { method: 'POST', body: formData });
             const data = await r.json();
 
             if (data.error) {
                 resultDiv.innerHTML = `❌ Erreur : ${data.error}`;
             } else {
-                resultDiv.innerHTML = `🎯 Détection : <span style="color:var(--primary)">${data.vehicule}</span> <br><span style="font-size:14px; color:var(--text-muted)">Confiance : ${data.confiance}%</span>`;
+                resultDiv.innerHTML = `🎯 Détection : <span style="color:var(--primary)">${data.vehicule}</span>
+                    <br><span style="font-size:14px; color:var(--text-muted)">Confiance : ${data.confiance}%</span>`;
             }
         } catch (e) {
             resultDiv.innerHTML = `❌ Erreur de connexion avec le serveur IA.`;
         }
     }
 
-    // TÉLÉVERSEMENT PAR FICHIER AUDIO
     function testIAWithFile() {
         const fileInput = document.getElementById('testAudio');
         if (!fileInput.files[0]) return alert("Veuillez d'abord sélectionner un fichier audio.");
         sendAudioToIA(fileInput.files[0], fileInput.files[0].name);
     }
 
-    // ENREGISTREMENT MICRO EN DIRECT
+    // ── ENREGISTREMENT MICRO ──
+
     async function toggleMicRecording() {
         const micButton = document.getElementById('micButton');
-        
+
         if (!isRecording) {
-            // Démarrer l'enregistrement
             audioChunks = [];
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const stream  = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream);
-                
-                mediaRecorder.ondataavailable = (event) => {
-                    audioChunks.push(event.data);
-                };
+
+                mediaRecorder.ondataavailable = (event) => { audioChunks.push(event.data); };
 
                 mediaRecorder.onstop = () => {
                     const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                     sendAudioToIA(audioBlob, "recording.wav");
-                    
-                    // Couper le micro physiquement
                     stream.getTracks().forEach(track => track.stop());
                 };
 
                 mediaRecorder.start();
-                isRecording = true;
-                micButton.className = "recording";
+                isRecording          = true;
+                micButton.className  = "recording";
                 micButton.textContent = "⏹️ Arrêter l'enregistrement (0s...)";
-                
-                // 10 secondes (pour caler avec la limite librosa)
+
                 let elapsed = 0;
                 micTimeout = setInterval(() => {
                     elapsed++;
                     micButton.textContent = `⏹️ Arrêter l'enregistrement (${elapsed}s / 10s)`;
-                    if (elapsed >= 10) {
-                        toggleMicRecording();
-                    }
+                    if (elapsed >= 10) toggleMicRecording();
                 }, 1000);
 
             } catch (err) {
@@ -381,17 +423,15 @@
                 console.error(err);
             }
         } else {
-            // Arrêter l'enregistrement
-            if (mediaRecorder && mediaRecorder.state !== "inactive") {
-                mediaRecorder.stop();
-            }
+            if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
             clearInterval(micTimeout);
-            isRecording = false;
-            micButton.className = "btn-warn";
+            isRecording           = false;
+            micButton.className   = "btn-warn";
             micButton.textContent = "🎙️ Enregistrer le micro (max 10s)";
         }
     }
 
+    // ── INIT ──
     loadDataset();
     pollStatus();
 </script>

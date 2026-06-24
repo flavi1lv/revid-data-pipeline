@@ -25,20 +25,16 @@ def load_revid_model():
     return model, class_names
 
 def predict_spectrogram(image_path, model, class_names):
-    """Fait analyser une image de spectrogramme par l'IA."""
-    # 1. Charger et préparer l'image (exactement comme à l'entraînement)
     img = tf.keras.utils.load_img(image_path, target_size=(224, 224))
     img_array = tf.keras.utils.img_to_array(img)
-    img_array = tf.expand_dims(img_array, 0) # Créer un "batch" virtuel d'une seule image
+    img_array = tf.expand_dims(img_array, 0)
 
-    # 2. Demander la prédiction à l'IA
-    predictions = model.predict(img_array, verbose=0)
-    score = tf.nn.softmax(predictions[0]) # Transforme les résultats en pourcentages
+    predictions = model.predict(img_array, verbose=0)*
+    scores = predictions[0]
 
-    # 3. Trouver la meilleure réponse
-    predicted_class_index = np.argmax(score)
-    predicted_class_name = class_names[predicted_class_index]
-    confidence = 100 * np.max(score)
+    predicted_class_index = np.argmax(scores)
+    predicted_class_name  = class_names[predicted_class_index]
+    confidence            = 100 * np.max(scores)
 
     return predicted_class_name, confidence
 
